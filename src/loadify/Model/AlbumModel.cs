@@ -1,7 +1,10 @@
-﻿using System;
+using System;
+using System.Drawing.Imaging;
+using System.IO;
 using System.Threading.Tasks;
 using loadify.Spotify;
 using SpotifySharp;
+using Image = SpotifySharp.Image;
 
 namespace loadify.Model
 {
@@ -37,7 +40,27 @@ namespace loadify.Model
                 // retrieve the cover image of the album...
                 var coverImage = session.GetImage(unmanagedAlbum.Cover(ImageSize.Large));
                 await SpotifyObject.WaitForInitialization(coverImage.IsLoaded);
-                albumModel.Cover = coverImage.Data();
+
+                using (var input = new MemoryStream(coverImage.Data()))
+                {
+                    using (System.Drawing.Image img = System.Drawing.Image.FromStream(input))
+                    {
+                        using (var output = new MemoryStream())
+                        {
+                            // Define Variable for the compressing of the cover
+                            Encoder myEncoder = Encoder.Quality;
+                            EncoderParameter myEncoderParameter = new EncoderParameter(myEncoder, 25L);
+                            EncoderParameters myEncoderParameters = new EncoderParameters(1);
+                            ImageCodecInfo myImageCodecInfo = GetEncoderInfo("image/jpeg");
+                            myEncoderParameters.Param[0] = myEncoderParameter;
+
+                            //Save compressed image
+                            img.Save(output, myImageCodecInfo, myEncoderParameters);
+                            albumModel.Cover = output.ToArray();
+                        }
+                    }
+                }
+
             }
             catch (AccessViolationException)
             {
@@ -46,6 +69,16 @@ namespace loadify.Model
             }
             
             return albumModel;
+        }
+
+        private static ImageCodecInfo GetEncoderInfo(string mimeType)
+        {
+            ImageCodecInfo[] encoders = ImageCodecInfo.GetImageEncoders();
+            for (int i = 0; i <= encoders.Length; i++)
+            {
+                if (encoders[i].MimeType == mimeType) return encoders[i];
+            }
+            return null;
         }
     }
 }
